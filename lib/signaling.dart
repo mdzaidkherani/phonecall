@@ -315,7 +315,8 @@ class Signaling {
 
 
 class Signaling2 {
-  final String serverUrl = "http://localhost:3000"; // Change to your server IP if needed
+  final String serverUrl = 'https://phonecall-josu.onrender.com';
+  // final String serverUrl = "http://localhost:3000"; // Change to your server IP if needed
   final Dio dio = Dio();
 
   RTCPeerConnection? peerConnection;
