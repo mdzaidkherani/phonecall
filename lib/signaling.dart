@@ -388,7 +388,7 @@ class Signaling2 {
 
     peerConnection!.onTrack = (RTCTrackEvent event) {
       if (event.streams.isNotEmpty) {
-        print("Callee: Remote stream added - ${event.streams[0].id}");
+        print("Caller: Remote stream added - ${event.streams[0].id}");
         remoteStream = event.streams[0];
         onAddRemoteStream?.call(remoteStream!);
       }
@@ -427,12 +427,11 @@ class Signaling2 {
 
     peerConnection!.onTrack = (RTCTrackEvent event) {
       if (event.streams.isNotEmpty) {
-        print("Caller: Remote stream added - ${event.streams[0].id}");
+        print("Callee: Remote stream added - ${event.streams[0].id}");
         remoteStream = event.streams[0];
         onAddRemoteStream?.call(remoteStream!);
       }
     };
-
 
     registerPeerConnectionListeners();
 
