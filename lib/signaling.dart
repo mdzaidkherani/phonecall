@@ -315,6 +315,16 @@ class Signaling {
 
 
 class Signaling2 {
+  Map<String, dynamic> configuration = {
+    'iceServers': [
+      {
+        'urls': [
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302'
+        ]
+      }
+    ]
+  };
   final String serverUrl = 'https://phonecall-josu.onrender.com';
   // final String serverUrl = "http://localhost:3000"; // Change to your server IP if needed
   final Dio dio = Dio();
@@ -348,9 +358,7 @@ class Signaling2 {
   }
 
   Future<String> createRoom() async {
-    peerConnection = await createPeerConnection({
-      'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
-    });
+    peerConnection = await createPeerConnection(configuration);
 
     peerConnection!.onIceCandidate = (candidate) async {
       if (roomId != null) {
@@ -360,32 +368,48 @@ class Signaling2 {
 
     var offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
-
     var response = await dio.post("$serverUrl/create-room", data: offer.toMap());
     roomId = response.data["roomId"];
+
+    // var offer = await peerConnection!.createOffer();
+    // await peerConnection!.setLocalDescription(offer);
+    // var response = await dio.post("$serverUrl/create-room", data: offer.toMap());
+    // roomId = response.data["roomId"];
+
     print(roomId);
     return roomId!;
   }
 
   Future<void> joinRoom(String id) async {
     roomId = id;
-    peerConnection = await createPeerConnection({
-      'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
-    });
+    peerConnection = await createPeerConnection(configuration);
 
+    // peerConnection!.onIceCandidate = (candidate) async {
+    //   await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+    // };
     peerConnection!.onIceCandidate = (candidate) async {
-      await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+      print("Local ICE Candidate: ${candidate.toMap()}");
+
+      if (roomId != null) {
+        await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+      }
     };
+
 
     var response = await dio.get("$serverUrl/room/$roomId");
     var offer = response.data["offer"];
 
     if (offer != null) {
-      await peerConnection!.setRemoteDescription(RTCSessionDescription(offer["sdp"], offer["type"]));
+      await peerConnection!.setRemoteDescription(
+        RTCSessionDescription(offer["sdp"], offer["type"]),
+      );
+
       var answer = await peerConnection!.createAnswer();
       await peerConnection!.setLocalDescription(answer);
+
       await dio.post("$serverUrl/room/$roomId/answer", data: answer.toMap());
     }
+
 
     _fetchCandidates();
   }
@@ -394,9 +418,14 @@ class Signaling2 {
     while (roomId != null) {
       var response = await dio.get("$serverUrl/room/$roomId/candidates");
       for (var candidate in response.data) {
-        peerConnection!.addCandidate(RTCIceCandidate(candidate["candidate"], candidate["sdpMid"], candidate["sdpMLineIndex"]));
+        print("Adding Remote ICE Candidate: $candidate");
+        peerConnection!.addCandidate(RTCIceCandidate(
+          candidate["candidate"],
+          candidate["sdpMid"],
+          candidate["sdpMLineIndex"],
+        ));
       }
-      await Future.delayed(Duration(seconds: 1)); // Polling every second
+      await Future.delayed(Duration(seconds: 1)); // Poll every second
     }
   }
 
