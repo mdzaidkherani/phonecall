@@ -335,6 +335,30 @@ class Signaling2 {
   String? roomId;
   Function(MediaStream stream)? onAddRemoteStream;
 
+  void registerPeerConnectionListeners() {
+    peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
+      print('ICE gathering state changed: $state');
+    };
+
+    peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
+      print('Connection state change: $state');
+    };
+
+    peerConnection?.onSignalingState = (RTCSignalingState state) {
+      print('Signaling state change: $state');
+    };
+
+    peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
+      print('ICE connection state change: $state');
+    };
+
+    peerConnection?.onAddStream = (MediaStream stream) {
+      print("Add remote stream");
+      onAddRemoteStream?.call(stream);
+      remoteStream = stream;
+    };
+  }
+
   Future<bool> openUserMedia(RTCVideoRenderer localVideo, RTCVideoRenderer remoteVideo,) async {
     final stream = await navigator.mediaDevices.getUserMedia({
       'video': true,
@@ -359,12 +383,20 @@ class Signaling2 {
 
   Future<String> createRoom() async {
     peerConnection = await createPeerConnection(configuration);
+    print("PeerConnection created: $peerConnection");
 
-    // peerConnection!.onIceCandidate = (candidate) async {
-    //   if (roomId != null) {
-    //     await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
-    //   }
-    // };
+    registerPeerConnectionListeners();
+
+    localStream?.getTracks().forEach((track) {
+      peerConnection?.addTrack(track, localStream!);
+    });
+
+    peerConnection!.onIceCandidate = (candidate) async {
+      if (roomId != null) {
+        await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+      }
+    };
+
 
     var offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
@@ -384,6 +416,11 @@ class Signaling2 {
     roomId = id;
     peerConnection = await createPeerConnection(configuration);
 
+    registerPeerConnectionListeners();
+
+    localStream?.getTracks().forEach((track) {
+      peerConnection?.addTrack(track, localStream!);
+    });
     // peerConnection!.onIceCandidate = (candidate) async {
     //   await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
     // };
