@@ -360,11 +360,11 @@ class Signaling2 {
   Future<String> createRoom() async {
     peerConnection = await createPeerConnection(configuration);
 
-    peerConnection!.onIceCandidate = (candidate) async {
-      if (roomId != null) {
-        await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
-      }
-    };
+    // peerConnection!.onIceCandidate = (candidate) async {
+    //   if (roomId != null) {
+    //     await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+    //   }
+    // };
 
     var offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
@@ -417,6 +417,7 @@ class Signaling2 {
   Future<void> _fetchCandidates() async {
     while (roomId != null) {
       var response = await dio.get("$serverUrl/room/$roomId/candidates");
+      print(response.data);
       for (var candidate in response.data) {
         print("Adding Remote ICE Candidate: $candidate");
         peerConnection!.addCandidate(RTCIceCandidate(
