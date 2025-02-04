@@ -461,7 +461,7 @@ class Signaling2 {
 
   Future<void> _fetchCandidates() async {
 
-    while (roomId != null) {
+    while (peerConnection != null && peerConnection!.connectionState != RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
       var response = await dio.get("$serverUrl/room/$roomId/candidates");
       print(response.data);
       var candidate = response.data;
