@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "100870885548",
+    "project_id": "webtutorial-2f222",
+    "storage_bucket": "webtutorial-2f222.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100870885548:android:e6ce4a4700ee9d4ce7cf09",
+        "android_client_info": {
+          "package_name": "com.example.phonecall"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEAC8aVOzYbi7gQMgs4rhIpoiHbHhVLFk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100870885548:android:18ad81433ed744dae7cf09",
+        "android_client_info": {
+          "package_name": "dev.flutterexplained.webrtc_tutorial"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEAC8aVOzYbi7gQMgs4rhIpoiHbHhVLFk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
