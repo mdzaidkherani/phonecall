@@ -414,7 +414,6 @@ class Signaling2 {
   }
 
   Future<void> joinRoom(String id) async {
-
     roomId = id;
     peerConnection = await createPeerConnection(configuration);
 
