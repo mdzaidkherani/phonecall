@@ -405,14 +405,24 @@ class Signaling2 {
       print("Local ICE Candidate: ${candidate.toMap()}");
 
       if (roomId != null) {
-        await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+        try{
+          await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+        }catch(r){
+          print('s');
+          print(r);
+        }
       }
     };
 
     var offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
-    var response = await dio.post("$serverUrl/create-room", data: offer.toMap());
-    roomId = response.data["roomId"];
+    try{
+      var response = await dio.post("$serverUrl/create-room", data: offer.toMap());
+      roomId = response.data["roomId"];
+    }catch(r){
+      print('ss');
+      print(r);
+    }
 
     // var offer = await peerConnection!.createOffer();
     // await peerConnection!.setLocalDescription(offer);
@@ -447,7 +457,12 @@ class Signaling2 {
       print("Local ICE Candidate: ${candidate.toMap()}");
 
       if (roomId != null) {
-        await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+        try{
+          await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
+        }catch(r){
+          print('sss');
+          print(r);
+        }
       }
     };
 
@@ -456,6 +471,7 @@ class Signaling2 {
     var offer = response.data["offer"];
 
     if (offer != null) {
+
       await peerConnection!.setRemoteDescription(
         RTCSessionDescription(offer["sdp"], offer["type"]),
       );
@@ -463,7 +479,12 @@ class Signaling2 {
       var answer = await peerConnection!.createAnswer();
       await peerConnection!.setLocalDescription(answer);
 
-      await dio.post("$serverUrl/room/$roomId/answer", data: answer.toMap());
+      try{
+        await dio.post("$serverUrl/room/$roomId/answer", data: answer.toMap());
+      }catch(r){
+        print('ssss');
+        print(r);
+      }
     }
 
 
@@ -474,16 +495,22 @@ class Signaling2 {
   Future<void> _fetchCandidates() async {
     while (peerConnection != null &&
         peerConnection!.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateConnecting) {
-      var response = await dio.get("$serverUrl/room/$roomId/candidates");
-      for (var candidate in response.data) {
-        print("Adding Remote ICE Candidate: $candidate");
-        await peerConnection!.addCandidate(RTCIceCandidate(
-          candidate["candidate"],
-          candidate["sdpMid"],
-          candidate["sdpMLineIndex"],
-        ));
+      try{
+        var response = await dio.get("$serverUrl/room/$roomId/candidates");
+        for (var candidate in response.data) {
+          print("Adding Remote ICE Candidate: $candidate");
+          await peerConnection!.addCandidate(RTCIceCandidate(
+            candidate["candidate"],
+            candidate["sdpMid"],
+            candidate["sdpMLineIndex"],
+          ));
+        }
+      }catch(r){
+        print('sssss');
+        print(r);
       }
-      await Future.delayed(Duration(seconds: 1)); // Poll every second
+
+      await Future.delayed(Duration(seconds: 5)); // Poll every second
     }
     print("ICE candidate fetching stopped as connection is established.");
   }
