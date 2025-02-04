@@ -386,6 +386,14 @@ class Signaling2 {
     peerConnection = await createPeerConnection(configuration);
     print("PeerConnection created: $peerConnection");
 
+    peerConnection!.onTrack = (RTCTrackEvent event) {
+      if (event.streams.isNotEmpty) {
+        print("Callee: Remote stream added - ${event.streams[0].id}");
+        remoteStream = event.streams[0];
+        onAddRemoteStream?.call(remoteStream!);
+      }
+    };
+
     registerPeerConnectionListeners();
 
     localStream?.getTracks().forEach((track) {
@@ -417,6 +425,15 @@ class Signaling2 {
     roomId = id;
     peerConnection = await createPeerConnection(configuration);
 
+    peerConnection!.onTrack = (RTCTrackEvent event) {
+      if (event.streams.isNotEmpty) {
+        print("Caller: Remote stream added - ${event.streams[0].id}");
+        remoteStream = event.streams[0];
+        onAddRemoteStream?.call(remoteStream!);
+      }
+    };
+
+
     registerPeerConnectionListeners();
 
     localStream?.getTracks().forEach((track) {
@@ -433,13 +450,6 @@ class Signaling2 {
       }
     };
 
-    peerConnection?.onTrack = (RTCTrackEvent event) {
-      print('Got remote track: ${event.streams[0]}');
-      event.streams[0].getTracks().forEach((track) {
-        print('Add a track to the remoteStream: $track');
-        remoteStream?.addTrack(track);
-      });
-    };
 
     var response = await dio.get("$serverUrl/room/$roomId");
     var offer = response.data["offer"];
@@ -454,6 +464,7 @@ class Signaling2 {
 
       await dio.post("$serverUrl/room/$roomId/answer", data: answer.toMap());
     }
+
 
 
     _fetchCandidates();
