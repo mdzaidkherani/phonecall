@@ -333,6 +333,7 @@ class Signaling2 {
   MediaStream? localStream;
   MediaStream? remoteStream;
   String? roomId;
+
   Function(MediaStream stream)? onAddRemoteStream;
 
   void registerPeerConnectionListeners() {
@@ -413,6 +414,7 @@ class Signaling2 {
   }
 
   Future<void> joinRoom(String id) async {
+
     roomId = id;
     peerConnection = await createPeerConnection(configuration);
 
@@ -432,6 +434,13 @@ class Signaling2 {
       }
     };
 
+    peerConnection?.onTrack = (RTCTrackEvent event) {
+      print('Got remote track: ${event.streams[0]}');
+      event.streams[0].getTracks().forEach((track) {
+        print('Add a track to the remoteStream: $track');
+        remoteStream?.addTrack(track);
+      });
+    };
 
     var response = await dio.get("$serverUrl/room/$roomId");
     var offer = response.data["offer"];
@@ -452,17 +461,19 @@ class Signaling2 {
   }
 
   Future<void> _fetchCandidates() async {
+
     while (roomId != null) {
       var response = await dio.get("$serverUrl/room/$roomId/candidates");
       print(response.data);
-      for (var candidate in response.data) {
+      var candidate = response.data;
+      // for (var candidate in response.data) {
         print("Adding Remote ICE Candidate: $candidate");
         peerConnection!.addCandidate(RTCIceCandidate(
           candidate["candidate"],
           candidate["sdpMid"],
           candidate["sdpMLineIndex"],
         ));
-      }
+      // }
       await Future.delayed(Duration(seconds: 1)); // Poll every second
     }
   }
