@@ -317,11 +317,11 @@ class Signaling {
 class Signaling2 {
   Map<String, dynamic> configuration = {
     'iceServers': [
+      {'urls': 'stun:stun.l.google.com:19302'}, // STUN server
       {
-        'urls': [
-          'stun:stun1.l.google.com:19302',
-          'stun:stun2.l.google.com:19302'
-        ]
+        'urls': 'turn:relay.backups.cz', // TURN server
+        'username': 'webrtc',
+        'credential': 'webrtc'
       }
     ]
   };
@@ -400,12 +400,14 @@ class Signaling2 {
       peerConnection?.addTrack(track, localStream!);
     });
 
+
     peerConnection!.onIceCandidate = (candidate) async {
+      print("Local ICE Candidate: ${candidate.toMap()}");
+
       if (roomId != null) {
         await dio.post("$serverUrl/room/$roomId/candidate", data: candidate.toMap());
       }
     };
-
 
     var offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
@@ -470,22 +472,22 @@ class Signaling2 {
   }
 
   Future<void> _fetchCandidates() async {
-
-    while (peerConnection != null && peerConnection!.connectionState != RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+    while (peerConnection != null &&
+        peerConnection!.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateConnecting) {
       var response = await dio.get("$serverUrl/room/$roomId/candidates");
-      print(response.data);
-      var candidate = response.data;
-      // for (var candidate in response.data) {
+      for (var candidate in response.data) {
         print("Adding Remote ICE Candidate: $candidate");
-        peerConnection!.addCandidate(RTCIceCandidate(
+        await peerConnection!.addCandidate(RTCIceCandidate(
           candidate["candidate"],
           candidate["sdpMid"],
           candidate["sdpMLineIndex"],
         ));
-      // }
+      }
       await Future.delayed(Duration(seconds: 1)); // Poll every second
     }
+    print("ICE candidate fetching stopped as connection is established.");
   }
+
 
   void hangUp() {
     peerConnection?.close();
