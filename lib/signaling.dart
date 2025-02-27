@@ -245,6 +245,8 @@ class Signaling {
         if (event.streams.isEmpty) return;
         event.streams[0].getTracks().forEach((track) {
           remoteStream?.addTrack(track);
+          onAddRemoteStream?.call(track as MediaStream);
+          remoteStream = track as MediaStream;
         });
       };
 
@@ -310,6 +312,10 @@ class Signaling {
         if (event.streams.isEmpty) return;
         event.streams[0].getTracks().forEach((track) {
           remoteStream?.addTrack(track);
+          onAddRemoteStream?.call(track as MediaStream);
+          remoteStream = track as MediaStream;
+          // onAddRemoteStream?.call(event);
+          // remoteStream = track;
         });
       };
     } catch (e) {
