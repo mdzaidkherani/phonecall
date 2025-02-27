@@ -64,7 +64,7 @@ class Signaling {
       if (!snapshot.exists) return;
       var data = snapshot.data() as Map<String, dynamic>;
 
-      if (data.containsKey('answer') && peerConnection!.getRemoteDescription() == null) {
+      if (data.containsKey('answer')) {
         var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
         await peerConnection!.setRemoteDescription(answer);
         print('✅ Remote Description (Answer) Set');
@@ -140,7 +140,7 @@ class Signaling {
       if (!snapshot.exists) return;
       var data = snapshot.data() as Map<String, dynamic>;
 
-      if (data.containsKey('answer') && peerConnection!.getRemoteDescription() == null) {
+      if (data.containsKey('answer')) {
         var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
         await peerConnection!.setRemoteDescription(answer);
         print('✅ Remote Description (Answer) Set');
