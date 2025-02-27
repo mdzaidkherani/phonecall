@@ -64,14 +64,27 @@ class Signaling {
       if (!snapshot.exists) return;
       var data = snapshot.data() as Map<String, dynamic>;
 
-      if (data.containsKey('answer') && peerConnection?.getRemoteDescription() == null) {
+      if (data.containsKey('answer') && peerConnection!.getRemoteDescription() == null) {
         var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-        await peerConnection?.setRemoteDescription(answer);
+        await peerConnection!.setRemoteDescription(answer);
         print('✅ Remote Description (Answer) Set');
+      } else {
+        print('📡 Waiting for answer... Firestore data: $data');
       }
     });
 
-    print('📡 Waiting for an answer...');
+    // roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
+    //   if (!snapshot.exists) return;
+    //   var data = snapshot.data() as Map<String, dynamic>;
+    //
+    //   if (data.containsKey('answer') && peerConnection?.getRemoteDescription() == null) {
+    //     var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+    //     await peerConnection?.setRemoteDescription(answer);
+    //     print('✅ Remote Description (Answer) Set');
+    //   }
+    // });
+    //
+    // print('📡 Waiting for an answer...');
     return roomId;
   }
   Future<void> joinRoom(String roomId) async {
@@ -110,6 +123,16 @@ class Signaling {
 
     print('✅ Answer created and sent to Firestore.');
 
+    // Force Firestore refresh by waiting 2 seconds
+    await Future.delayed(Duration(seconds: 2));
+
+    var updatedSnapshot = await roomRef.get();
+    if (updatedSnapshot.data()!.containsKey('answer')) {
+      print('🔄 Answer is confirmed in Firestore!');
+    } else {
+      print('❌ Answer did not save properly in Firestore!');
+    }
+
     waitForRemoteDescription(roomRef);
   }
   void waitForRemoteDescription(DocumentReference roomRef) async {
@@ -117,21 +140,26 @@ class Signaling {
       if (!snapshot.exists) return;
       var data = snapshot.data() as Map<String, dynamic>;
 
-      if (data.containsKey('answer') && peerConnection?.getRemoteDescription() == null) {
+      if (data.containsKey('answer') && peerConnection!.getRemoteDescription() == null) {
         var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-        await peerConnection?.setRemoteDescription(answer);
+        await peerConnection!.setRemoteDescription(answer);
         print('✅ Remote Description (Answer) Set');
+      } else {
+        print('📡 Still waiting for answer... Firestore data: $data');
       }
     });
 
+    // Retry in case Firestore is slow
     Future.delayed(Duration(seconds: 5), () async {
       var snapshot = await roomRef.get();
-      if (snapshot.exists && peerConnection?.getRemoteDescription() == null) {
+      if (snapshot.exists && peerConnection!.getRemoteDescription() == null) {
         var data = snapshot.data() as Map<String, dynamic>;
         if (data.containsKey('answer')) {
           var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-          await peerConnection?.setRemoteDescription(answer);
+          await peerConnection!.setRemoteDescription(answer);
           print('✅ Remote Description (Answer) Set (After Retry)');
+        } else {
+          print('❌ Answer still not found in Firestore!');
         }
       }
     });
