@@ -317,11 +317,11 @@ class Signaling {
 class Signaling2 {
   Map<String, dynamic> configuration = {
     'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'}, // STUN server
       {
-        'urls': 'turn:relay.backups.cz', // TURN server
-        'username': 'webrtc',
-        'credential': 'webrtc'
+        'urls': [
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302'
+        ]
       }
     ]
   };
@@ -384,7 +384,7 @@ class Signaling2 {
 
   Future<String> createRoom() async {
     peerConnection = await createPeerConnection(configuration);
-    print("PeerConnection created: $peerConnection");
+    print("PeerConnection created: ${peerConnection}");
 
     peerConnection!.onTrack = (RTCTrackEvent event) {
       if (event.streams.isNotEmpty) {
@@ -497,6 +497,8 @@ class Signaling2 {
         peerConnection!.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateConnecting) {
       try{
         var response = await dio.get("$serverUrl/room/$roomId/candidates");
+        print(response.data);
+        print('sssssaaaa');
         for (var candidate in response.data) {
           print("Adding Remote ICE Candidate: $candidate");
           await peerConnection!.addCandidate(RTCIceCandidate(

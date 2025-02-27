@@ -228,25 +228,25 @@ class _MyHomePageState extends State<MyHomePage> {
     _localRenderer.initialize();
     _remoteRenderer.initialize();
     Future.delayed(Duration(milliseconds: 200),()async{
-      // var res = await signaling.openUserMedia(_localRenderer, _remoteRenderer);
-      // if(res){
-      //   setState(() {});
-      // }
-      var res2 = await signaling2.openUserMedia(_localRenderer, _remoteRenderer);
-      if(res2){
+      var res = await signaling.openUserMedia(_localRenderer, _remoteRenderer);
+      if(res){
         setState(() {});
       }
+      // var res2 = await signaling2.openUserMedia(_localRenderer, _remoteRenderer);
+      // if(res2){
+      //   setState(() {});
+      // }
     });
 
-    // signaling.onAddRemoteStream = ((stream) {
-    //   _remoteRenderer.srcObject = stream;
-    //   setState(() {});
-    // });
-
-    signaling2.onAddRemoteStream = ((stream) {
+    signaling.onAddRemoteStream = ((stream) {
       _remoteRenderer.srcObject = stream;
       setState(() {});
     });
+
+    // signaling2.onAddRemoteStream = ((stream) {
+    //   _remoteRenderer.srcObject = stream;
+    //   setState(() {});
+    // });
 
     super.initState();
   }
@@ -259,29 +259,29 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Column(
         children: [
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: ()async {
-                  textEditingController.text = await signaling2.createRoom();
-                },
-                child: Text("Create Room 2"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  signaling2.joinRoom(textEditingController.text.trim());
-                },
-                child: Text("Join Room 2"),
-              ),
-
-              ElevatedButton(
-                onPressed: () {
-                  signaling2.hangUp();
-                },
-                child: Text("Hangup"),
-              ),
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     ElevatedButton(
+          //       onPressed: ()async {
+          //         textEditingController.text = await signaling2.createRoom();
+          //       },
+          //       child: Text("Create Room 2"),
+          //     ),
+          //     ElevatedButton(
+          //       onPressed: () {
+          //         signaling2.joinRoom(textEditingController.text.trim());
+          //       },
+          //       child: Text("Join Room 2"),
+          //     ),
+          //
+          //     ElevatedButton(
+          //       onPressed: () {
+          //         signaling2.hangUp();
+          //       },
+          //       child: Text("Hangup"),
+          //     ),
+          //   ],
+          // ),
 
 
 
