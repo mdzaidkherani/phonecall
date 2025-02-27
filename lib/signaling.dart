@@ -421,16 +421,38 @@ class Signaling {
     //   }
     // });
     roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
-      snapshot.docChanges.forEach((change) {
+      snapshot.docChanges.forEach((change) async {
         if (change.type == DocumentChangeType.added) {
-          Map<String, dynamic> data = change.doc.data() as Map<String, dynamic>;
-          print('Received Remote ICE Candidate: ${jsonEncode(data)}');
-          peerConnection!.addCandidate(
-            RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']),
-          );
+          var data = change.doc.data() as Map<String, dynamic>;
+          print('📡 Got new remote ICE candidate: ${data}');
+
+          if (peerConnection!.getRemoteDescription() != null) {
+            await peerConnection!.addCandidate(
+              RTCIceCandidate(
+                data['candidate'],
+                data['sdpMid'],
+                data['sdpMLineIndex'],
+              ),
+            );
+            print("✅ Remote ICE candidate added successfully");
+          } else {
+            print("❌ Skipped ICE Candidate: Remote Description is NULL!");
+          }
         }
       });
     });
+
+    // roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
+    //   snapshot.docChanges.forEach((change) {
+    //     if (change.type == DocumentChangeType.added) {
+    //       Map<String, dynamic> data = change.doc.data() as Map<String, dynamic>;
+    //       print('Received Remote ICE Candidate: ${jsonEncode(data)}');
+    //       peerConnection!.addCandidate(
+    //         RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']),
+    //       );
+    //     }
+    //   });
+    // });
 
     toggleSpeaker();
     return roomId!;
