@@ -491,13 +491,17 @@ class Signaling {
 
   Future<void> toggleSpeaker() async {
     try {
-      await Helper.selectAudioOutput('speaker');
+      if (WebRTC.platformIsWeb) {
+
+      } else {
+        await Helper.setSpeakerphoneOn(true);
+      }
     } catch (e) {
       print('Error toggling speaker: $e');
     }
-  }
+  }/// **📌 HANGUP FUNCTION**
 
-  /// **📌 HANGUP FUNCTION**
+
   Future<void> hangUp(RTCVideoRenderer localVideo) async {
     localVideo.srcObject?.getTracks().forEach((track) => track.stop());
     remoteStream?.getTracks().forEach((track) => track.stop());
