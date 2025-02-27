@@ -40,131 +40,228 @@ class Signaling {
   bool hasMultipleCameras = false;
   String? _currentCameraId;
 
+  // Future<String> createRoom() async {
+  //
+  //   final roomRef = FirebaseFirestore.instance.collection('rooms').doc();
+  //
+  //   peerConnection = await createPeerConnection(configuration);
+  //   registerPeerConnectionListeners();
+  //   peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+  //     if (candidate.candidate != null) {
+  //       roomRef.collection('candidates').add(candidate.toMap());
+  //     }
+  //   };
+  //
+  //   RTCSessionDescription offer = await peerConnection!.createOffer();
+  //   await peerConnection!.setLocalDescription(offer);
+  //
+  //   await roomRef.set({
+  //     'offer': {'sdp': offer.sdp, 'type': offer.type},
+  //   });
+  //   var roomId = roomRef.id;
+  //   print('✅ Offer created and saved to Firestore.');
+  //
+  //   roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
+  //     if (!snapshot.exists) return;
+  //     var data = snapshot.data() as Map<String, dynamic>;
+  //
+  //     if (data.containsKey('answer')) {
+  //       var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+  //       await peerConnection!.setRemoteDescription(answer);
+  //       print('✅ Remote Description (Answer) Set');
+  //     } else {
+  //       print('📡 Waiting for answer... Firestore data: $data');
+  //     }
+  //   });
+  //
+  //   // roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
+  //   //   if (!snapshot.exists) return;
+  //   //   var data = snapshot.data() as Map<String, dynamic>;
+  //   //
+  //   //   if (data.containsKey('answer') && peerConnection?.getRemoteDescription() == null) {
+  //   //     var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+  //   //     await peerConnection?.setRemoteDescription(answer);
+  //   //     print('✅ Remote Description (Answer) Set');
+  //   //   }
+  //   // });
+  //   //
+  //   // print('📡 Waiting for an answer...');
+  //   return roomId;
+  // }
+  // Future<void> joinRoom(String roomId) async {
+  //   final roomRef = FirebaseFirestore.instance.collection('rooms').doc(roomId);
+  //   final roomSnapshot = await roomRef.get();
+  //
+  //   if (!roomSnapshot.exists) {
+  //     print('❌ Room not found!');
+  //     return;
+  //   }
+  //
+  //   var data = roomSnapshot.data() as Map<String, dynamic>;
+  //   if (!data.containsKey('offer')) {
+  //     print('❌ No offer found in room.');
+  //     return;
+  //   }
+  //
+  //   peerConnection = await createPeerConnection(configuration);
+  //   registerPeerConnectionListeners();
+  //
+  //
+  //   // Ensure offer is set first
+  //   RTCSessionDescription offer = RTCSessionDescription(data['offer']['sdp'], data['offer']['type']);
+  //   await peerConnection!.setRemoteDescription(offer);
+  //   print('✅ Remote Description (Offer) Set');
+  //
+  //   // Create answer only after offer is confirmed
+  //   RTCSessionDescription answer = await peerConnection!.createAnswer();
+  //   await peerConnection!.setLocalDescription(answer);
+  //
+  //   await roomRef.update({
+  //     'answer': {'sdp': answer.sdp, 'type': answer.type}
+  //   });
+  //
+  //   print('✅ Answer created and sent to Firestore.');
+  //
+  //   waitForRemoteDescription(roomRef);
+  // }
+  //
+  // void waitForRemoteDescription(DocumentReference roomRef) async {
+  //   roomRef.snapshots().listen((snapshot) async {
+  //     if (!snapshot.exists && await peerConnection!.getRemoteDescription() == null) return;
+  //     var data = snapshot.data() as Map<String, dynamic>;
+  //
+  //     if (data.containsKey('answer')) {
+  //       // if (peerConnection!.signalingState == RTCSignalingState.RTCSignalingStateStable) {
+  //       //   print('⚠️ Skipping setRemoteDescription: Already stable');
+  //       //   return;
+  //       // }
+  //
+  //       if (peerConnection!.signalingState == RTCSignalingState.RTCSignalingStateStable) {
+  //         print('⚠️ Connection is already stable. Restarting ICE before setting answer.');
+  //         await peerConnection!.restartIce();
+  //         await Future.delayed(Duration(milliseconds: 500)); // Small delay to allow ICE restart
+  //       }
+  //
+  //       var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+  //       await peerConnection!.setRemoteDescription(answer);
+  //       print('✅ Remote Description (Answer) Set');
+  //
+  //       // var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+  //       // await peerConnection!.setRemoteDescription(answer);
+  //       // print('✅ Remote Description (Answer) Set');
+  //     } else {
+  //       print('📡 Still waiting for answer...');
+  //     }
+  //   });
+  //
+  //   Future.delayed(Duration(seconds: 5), () async {
+  //     var snapshot = await roomRef.get();
+  //     if (snapshot.exists && await peerConnection!.getRemoteDescription() == null) {
+  //       var data = snapshot.data() as Map<String, dynamic>;
+  //       if (data.containsKey('answer')) {
+  //         var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+  //         await peerConnection!.setRemoteDescription(answer);
+  //         print('✅ Remote Description (Answer) Set (After Retry)');
+  //       } else {
+  //         print('❌ Answer still not found in Firestore!');
+  //       }
+  //     }
+  //   });
+  // }
+// Create Room (Offerer)
   Future<String> createRoom() async {
     final roomRef = FirebaseFirestore.instance.collection('rooms').doc();
+    bool answerProcessed = false; // Flag to track answer processing
 
     peerConnection = await createPeerConnection(configuration);
+    registerPeerConnectionListeners();
 
-    peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-      if (candidate.candidate != null) {
-        roomRef.collection('candidates').add(candidate.toMap());
+    // ICE Candidate Handling
+    peerConnection!.onIceCandidate = (RTCIceCandidate? candidate) async {
+      if (candidate?.candidate != null && candidate!.sdpMid != null) {
+        await roomRef.collection('candidates').add(candidate.toMap());
       }
     };
 
+    // Create and set offer
     RTCSessionDescription offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
 
     await roomRef.set({
       'offer': {'sdp': offer.sdp, 'type': offer.type},
+      'answer': FieldValue.delete() // Clear previous answers
     });
-    var roomId = roomRef.id;
-    print('✅ Offer created and saved to Firestore.');
 
-    roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
-      if (!snapshot.exists) return;
-      var data = snapshot.data() as Map<String, dynamic>;
+    // Single-purpose answer listener
+    final answerSub = roomRef.snapshots().listen((snapshot) async {
+      if (!snapshot.exists || answerProcessed) return;
 
-      if (data.containsKey('answer')) {
-        var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-        await peerConnection!.setRemoteDescription(answer);
-        print('✅ Remote Description (Answer) Set');
-      } else {
-        print('📡 Waiting for answer... Firestore data: $data');
+      final data = snapshot.data()!;
+      if (data.containsKey('answer') &&
+          peerConnection?.signalingState != RTCSignalingState.RTCSignalingStateStable) {
+
+        answerProcessed = true;
+        final answer = RTCSessionDescription(
+            data['answer']['sdp'],
+            data['answer']['type']
+        );
+
+        try {
+          await peerConnection?.setRemoteDescription(answer);
+          print('✅ Remote Answer Set Successfully');
+          // answerSub.cancel(); // Stop listening after success
+        } catch (e) {
+          print('❌ Error setting answer: $e');
+        }
       }
     });
 
-    // roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
-    //   if (!snapshot.exists) return;
-    //   var data = snapshot.data() as Map<String, dynamic>;
-    //
-    //   if (data.containsKey('answer') && peerConnection?.getRemoteDescription() == null) {
-    //     var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-    //     await peerConnection?.setRemoteDescription(answer);
-    //     print('✅ Remote Description (Answer) Set');
-    //   }
-    // });
-    //
-    // print('📡 Waiting for an answer...');
-    return roomId;
+    print('✅ Room created with ID: ${roomRef.id}');
+    return roomRef.id;
   }
+
+// Join Room (Answerer)
   Future<void> joinRoom(String roomId) async {
     final roomRef = FirebaseFirestore.instance.collection('rooms').doc(roomId);
     final roomSnapshot = await roomRef.get();
 
-    if (!roomSnapshot.exists) {
-      print('❌ Room not found!');
-      return;
-    }
-
-    var data = roomSnapshot.data() as Map<String, dynamic>;
-    if (!data.containsKey('offer')) {
-      print('❌ No offer found in room.');
-      return;
+    if (!roomSnapshot.exists || !roomSnapshot.data()!.containsKey('offer')) {
+      throw Exception('Room or offer not found');
     }
 
     peerConnection = await createPeerConnection(configuration);
+    registerPeerConnectionListeners();
 
-    peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-      if (candidate.candidate != null) {
-        roomRef.collection('candidates').add(candidate.toMap());
-      }
-    };
-
-    RTCSessionDescription offer = RTCSessionDescription(data['offer']['sdp'], data['offer']['type']);
+    // Set remote offer first
+    final offerData = roomSnapshot.data()!['offer'] as Map<String, dynamic>;
+    final offer = RTCSessionDescription(offerData['sdp'], offerData['type']);
     await peerConnection!.setRemoteDescription(offer);
-    print('✅ Remote Description (Offer) Set');
 
-    RTCSessionDescription answer = await peerConnection!.createAnswer();
+    // Create and set answer
+    final answer = await peerConnection!.createAnswer();
     await peerConnection!.setLocalDescription(answer);
 
+    // Write answer to Firestore
     await roomRef.update({
-      'answer': {'sdp': answer.sdp, 'type': answer.type}
+      'answer': {'sdp': answer.sdp, 'type': answer.type},
     });
 
-    print('✅ Answer created and sent to Firestore.');
-
-    // Force Firestore refresh by waiting 2 seconds
-    await Future.delayed(Duration(seconds: 2));
-
-    var updatedSnapshot = await roomRef.get();
-    if (updatedSnapshot.data()!.containsKey('answer')) {
-      print('🔄 Answer is confirmed in Firestore!');
-    } else {
-      print('❌ Answer did not save properly in Firestore!');
-    }
-
-    waitForRemoteDescription(roomRef);
-  }
-  void waitForRemoteDescription(DocumentReference roomRef) async {
-    roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
-      if (!snapshot.exists) return;
-      var data = snapshot.data() as Map<String, dynamic>;
-
-      if (data.containsKey('answer')) {
-        var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-        await peerConnection!.setRemoteDescription(answer);
-        print('✅ Remote Description (Answer) Set');
-      } else {
-        print('📡 Still waiting for answer... Firestore data: $data');
-      }
-    });
-
-    // Retry in case Firestore is slow
-    Future.delayed(Duration(seconds: 5), () async {
-      var snapshot = await roomRef.get();
-      if (snapshot.exists ) {
-        var data = snapshot.data() as Map<String, dynamic>;
-        if (data.containsKey('answer')) {
-          var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
-          await peerConnection!.setRemoteDescription(answer);
-          print('✅ Remote Description (Answer) Set (After Retry)');
-        } else {
-          print('❌ Answer still not found in Firestore!');
+    // Listen for offerer's ICE candidates
+    roomRef.collection('candidates').snapshots().listen((snapshot) {
+      for (var change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final candidate = RTCIceCandidate(
+            change.doc['candidate'],
+            change.doc['sdpMid']!,
+            change.doc['sdpMLineIndex']!,
+          );
+          peerConnection!.addCandidate(candidate);
         }
       }
     });
-  }
 
+    print('✅ Successfully joined room $roomId');
+  }
 
   // Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
   //   FirebaseFirestore db = FirebaseFirestore.instance;
