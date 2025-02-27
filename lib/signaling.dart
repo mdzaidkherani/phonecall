@@ -40,44 +40,27 @@ class Signaling {
   bool hasMultipleCameras = false;
   String? _currentCameraId;
 
-  Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
-    FirebaseFirestore db = FirebaseFirestore.instance;
-    DocumentReference roomRef = db.collection('rooms').doc();
+  Future<void> createRoom() async {
+    final roomRef = FirebaseFirestore.instance.collection('rooms').doc();
 
-    print('🔹 Creating PeerConnection with configuration: $configuration');
     peerConnection = await createPeerConnection(configuration);
-    registerPeerConnectionListeners();
 
-    localStream?.getTracks().forEach((track) {
-      peerConnection?.addTrack(track, localStream!);
-    });
-
-    // 🔹 ICE Candidate Collection
-    var callerCandidatesCollection = roomRef.collection('callerCandidates');
-    peerConnection?.onIceCandidate = (RTCIceCandidate candidate) {
-      print('📡 New ICE candidate: ${candidate.toMap()}');
-      callerCandidatesCollection.add(candidate.toMap());
+    peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+      if (candidate.candidate != null) {
+        roomRef.collection('candidates').add(candidate.toMap());
+      }
     };
 
-    // 🔹 Creating SDP Offer
     RTCSessionDescription offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
-    print('✅ Created Offer: $offer');
 
-    // 🔹 Storing Offer in Firestore
-    await roomRef.set({'offer': offer.toMap()});
-    roomId = roomRef.id;
-    print('🆕 Room Created: $roomId');
+    await roomRef.set({
+      'offer': {'sdp': offer.sdp, 'type': offer.type},
+    });
 
-    peerConnection?.onTrack = (RTCTrackEvent event) {
-      print('🎥 Received remote track: ${event.streams[0]}');
-      event.streams[0].getTracks().forEach((track) {
-        remoteStream?.addTrack(track);
-      });
-    };
+    print('✅ Offer created and saved to Firestore.');
 
-    // 🔹 Listening for Answer & Remote Description
-    roomRef.snapshots().listen((snapshot) async {
+    roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
       if (!snapshot.exists) return;
       var data = snapshot.data() as Map<String, dynamic>;
 
@@ -88,111 +71,71 @@ class Signaling {
       }
     });
 
-    // 🔹 Listening for Remote ICE Candidates
-    roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
-      snapshot.docChanges.forEach((change) {
-        if (change.type == DocumentChangeType.added) {
-          var data = change.doc.data() as Map<String, dynamic>;
-          if (peerConnection?.getRemoteDescription() == null) {
-            print('🛑 Waiting for Remote Description before adding ICE candidate');
-            Future.delayed(Duration(seconds: 1), () {
-              if (peerConnection?.getRemoteDescription() != null) {
-                peerConnection!.addCandidate(RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']));
-                print('✅ ICE Candidate Added');
-              }
-            });
-          } else {
-            peerConnection!.addCandidate(RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']));
-            print('✅ ICE Candidate Added');
-          }
-        }
-      });
-    });
-
-    // toggleSpeaker();
-    return roomId!;
+    print('📡 Waiting for an answer...');
   }
-  Future<void> joinRoom(String roomId, RTCVideoRenderer remoteVideo) async {
-    FirebaseFirestore db = FirebaseFirestore.instance;
-    DocumentReference roomRef = db.collection('rooms').doc(roomId);
-    var roomSnapshot = await roomRef.get();
+  Future<void> joinRoom(String roomId) async {
+    final roomRef = FirebaseFirestore.instance.collection('rooms').doc(roomId);
+    final roomSnapshot = await roomRef.get();
 
     if (!roomSnapshot.exists) {
-      print('❌ Room does not exist!');
+      print('❌ Room not found!');
       return;
     }
 
-    print('🔹 Joining Room: $roomId');
-    peerConnection = await createPeerConnection(configuration);
-    registerPeerConnectionListeners();
-
-    localStream?.getTracks().forEach((track) {
-      peerConnection?.addTrack(track, localStream!);
-    });
-
-    // 🔹 ICE Candidate Collection for Callee
-    var calleeCandidatesCollection = roomRef.collection('calleeCandidates');
-    peerConnection!.onIceCandidate = (RTCIceCandidate? candidate) {
-      if (candidate == null) {
-        print('✅ ICE Gathering Completed!');
-        return;
-      }
-      print('📡 New ICE candidate: ${candidate.toMap()}');
-      calleeCandidatesCollection.add(candidate.toMap());
-    };
-
-    peerConnection?.onTrack = (RTCTrackEvent event) {
-      print('🎥 Received remote track: ${event.streams[0]}');
-      event.streams[0].getTracks().forEach((track) {
-        remoteStream?.addTrack(track);
-      });
-    };
-
-    // 🔹 Retrieving Offer & Setting Remote Description
     var data = roomSnapshot.data() as Map<String, dynamic>;
-    var offer = data['offer'];
-    await peerConnection?.setRemoteDescription(RTCSessionDescription(offer['sdp'], offer['type']));
+    if (!data.containsKey('offer')) {
+      print('❌ No offer found in room.');
+      return;
+    }
+
+    peerConnection = await createPeerConnection(configuration);
+
+    peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+      if (candidate.candidate != null) {
+        roomRef.collection('candidates').add(candidate.toMap());
+      }
+    };
+
+    RTCSessionDescription offer = RTCSessionDescription(data['offer']['sdp'], data['offer']['type']);
+    await peerConnection!.setRemoteDescription(offer);
     print('✅ Remote Description (Offer) Set');
 
-    // 🔹 Creating & Sending SDP Answer
-    var answer = await peerConnection!.createAnswer();
+    RTCSessionDescription answer = await peerConnection!.createAnswer();
     await peerConnection!.setLocalDescription(answer);
-    print('✅ Created Answer: $answer');
 
-    await roomRef.update({'answer': {'type': answer.type, 'sdp': answer.sdp}});
-
-    // 🔹 Queuing ICE Candidates Until Remote Description is Set
-    List<RTCIceCandidate> iceCandidateQueue = [];
-    roomRef.collection('callerCandidates').snapshots().listen((snapshot) {
-      snapshot.docChanges.forEach((document) {
-        var data = document.doc.data() as Map<String, dynamic>;
-        print('📡 Received ICE candidate: $data');
-
-        RTCIceCandidate candidate = RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']);
-
-        if (peerConnection!.getRemoteDescription() == null) {
-          print('🛑 Remote description not set, queuing ICE candidate.');
-          iceCandidateQueue.add(candidate);
-        } else {
-          peerConnection!.addCandidate(candidate);
-          print('✅ ICE Candidate Added');
-        }
-      });
+    await roomRef.update({
+      'answer': {'sdp': answer.sdp, 'type': answer.type}
     });
 
-    // 🔹 Add Queued ICE Candidates After Remote Description is Set
-    peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
-      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-        print('🚀 Connection Established, Adding Queued ICE Candidates');
-        iceCandidateQueue.forEach((candidate) {
-          peerConnection!.addCandidate(candidate);
-        });
-        iceCandidateQueue.clear();
-      }
-    };
+    print('✅ Answer created and sent to Firestore.');
 
-    // toggleSpeaker();
+    waitForRemoteDescription(roomRef);
   }
+  void waitForRemoteDescription(DocumentReference roomRef) async {
+    roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
+      if (!snapshot.exists) return;
+      var data = snapshot.data() as Map<String, dynamic>;
+
+      if (data.containsKey('answer') && peerConnection?.getRemoteDescription() == null) {
+        var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+        await peerConnection?.setRemoteDescription(answer);
+        print('✅ Remote Description (Answer) Set');
+      }
+    });
+
+    Future.delayed(Duration(seconds: 5), () async {
+      var snapshot = await roomRef.get();
+      if (snapshot.exists && peerConnection?.getRemoteDescription() == null) {
+        var data = snapshot.data() as Map<String, dynamic>;
+        if (data.containsKey('answer')) {
+          var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+          await peerConnection?.setRemoteDescription(answer);
+          print('✅ Remote Description (Answer) Set (After Retry)');
+        }
+      }
+    });
+  }
+
 
   // Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
   //   FirebaseFirestore db = FirebaseFirestore.instance;
