@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -169,98 +170,160 @@ class Signaling {
   //   });
   // }
 // Create Room (Offerer)
-  Future<String> createRoom() async {
-    final roomRef = FirebaseFirestore.instance.collection('rooms').doc();
-    bool answerProcessed = false; // Flag to track answer processing
+  // Create Room (Caller)
+  Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
+    final db = FirebaseFirestore.instance;
+    final roomRef = db.collection('rooms').doc();
+    bool answerProcessed = false;
+    StreamSubscription? roomSubscription;
+    StreamSubscription? candidateSubscription;
 
-    peerConnection = await createPeerConnection(configuration);
-    registerPeerConnectionListeners();
+    try {
+      peerConnection = await createPeerConnection(configuration);
+      registerPeerConnectionListeners();
 
-    // ICE Candidate Handling
-    peerConnection!.onIceCandidate = (RTCIceCandidate? candidate) async {
-      if (candidate?.candidate != null && candidate!.sdpMid != null) {
-        await roomRef.collection('candidates').add(candidate.toMap());
-      }
-    };
+      // Add local streams
+      localStream?.getTracks().forEach((track) {
+        peerConnection?.addTrack(track, localStream!);
+      });
 
-    // Create and set offer
-    RTCSessionDescription offer = await peerConnection!.createOffer();
-    await peerConnection!.setLocalDescription(offer);
+      // ICE Candidate handling
+      final callerCandidates = roomRef.collection('callerCandidates');
+      peerConnection?.onIceCandidate = (RTCIceCandidate? candidate) {
+        if (candidate == null || candidate.candidate!.isEmpty) return;
+        callerCandidates.add(candidate.toMap());
+      };
 
-    await roomRef.set({
-      'offer': {'sdp': offer.sdp, 'type': offer.type},
-      'answer': FieldValue.delete() // Clear previous answers
-    });
+      // Create and set offer
+      final offer = await peerConnection!.createOffer();
+      await peerConnection!.setLocalDescription(offer);
 
-    // Single-purpose answer listener
-    final answerSub = roomRef.snapshots().listen((snapshot) async {
-      if (!snapshot.exists || answerProcessed) return;
+      await roomRef.set({
+        'offer': offer.toMap(),
+        'answer': FieldValue.delete() // Clear previous answers
+      });
 
-      final data = snapshot.data()!;
-      if (data.containsKey('answer') &&
-          peerConnection?.signalingState != RTCSignalingState.RTCSignalingStateStable) {
+      // Remote answer listener
+      roomSubscription = roomRef.snapshots().listen((snapshot) async {
+        if (!snapshot.exists || answerProcessed) return;
 
-        answerProcessed = true;
-        final answer = RTCSessionDescription(
+        final data = snapshot.data()!;
+        if (data['answer'] != null &&
+            peerConnection?.signalingState == RTCSignalingState.RTCSignalingStateHaveLocalOffer) {
+
+          answerProcessed = true;
+          final answer = RTCSessionDescription(
             data['answer']['sdp'],
-            data['answer']['type']
-        );
+            data['answer']['type'],
+          );
 
-        try {
-          await peerConnection?.setRemoteDescription(answer);
-          print('✅ Remote Answer Set Successfully');
-          // answerSub.cancel(); // Stop listening after success
-        } catch (e) {
-          print('❌ Error setting answer: $e');
+          try {
+            await peerConnection?.setRemoteDescription(answer);
+            print('✅ Remote answer set successfully');
+            roomSubscription?.cancel();
+          } catch (e) {
+            print('❌ Error setting answer: $e');
+          }
         }
-      }
-    });
+      });
 
-    print('✅ Room created with ID: ${roomRef.id}');
-    return roomRef.id;
+      // Remote ICE candidates listener
+      candidateSubscription = roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
+        for (final change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added) {
+            final data = change.doc.data()!;
+            peerConnection!.addCandidate(RTCIceCandidate(
+              data['candidate'],
+              data['sdpMid']!,
+              data['sdpMLineIndex']!,
+            ));
+          }
+        }
+      });
+
+      peerConnection?.onTrack = (RTCTrackEvent event) {
+        if (event.streams.isEmpty) return;
+        event.streams[0].getTracks().forEach((track) {
+          remoteStream?.addTrack(track);
+        });
+      };
+
+      return roomRef.id;
+    } catch (e) {
+      _cleanupResources([roomSubscription, candidateSubscription]);
+      rethrow;
+    }
   }
 
-// Join Room (Answerer)
-  Future<void> joinRoom(String roomId) async {
-    final roomRef = FirebaseFirestore.instance.collection('rooms').doc(roomId);
-    final roomSnapshot = await roomRef.get();
+// Join Room (Callee)
+  Future<void> joinRoom(String roomId, RTCVideoRenderer remoteVideo) async {
+    final db = FirebaseFirestore.instance;
+    final roomRef = db.collection('rooms').doc(roomId);
+    StreamSubscription? candidateSubscription;
 
-    if (!roomSnapshot.exists || !roomSnapshot.data()!.containsKey('offer')) {
-      throw Exception('Room or offer not found');
-    }
-
-    peerConnection = await createPeerConnection(configuration);
-    registerPeerConnectionListeners();
-
-    // Set remote offer first
-    final offerData = roomSnapshot.data()!['offer'] as Map<String, dynamic>;
-    final offer = RTCSessionDescription(offerData['sdp'], offerData['type']);
-    await peerConnection!.setRemoteDescription(offer);
-
-    // Create and set answer
-    final answer = await peerConnection!.createAnswer();
-    await peerConnection!.setLocalDescription(answer);
-
-    // Write answer to Firestore
-    await roomRef.update({
-      'answer': {'sdp': answer.sdp, 'type': answer.type},
-    });
-
-    // Listen for offerer's ICE candidates
-    roomRef.collection('candidates').snapshots().listen((snapshot) {
-      for (var change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final candidate = RTCIceCandidate(
-            change.doc['candidate'],
-            change.doc['sdpMid']!,
-            change.doc['sdpMLineIndex']!,
-          );
-          peerConnection!.addCandidate(candidate);
-        }
+    try {
+      final snapshot = await roomRef.get();
+      if (!snapshot.exists || !snapshot.data()!.containsKey('offer')) {
+        throw Exception('Room not found or missing offer');
       }
-    });
 
-    print('✅ Successfully joined room $roomId');
+      peerConnection = await createPeerConnection(configuration);
+      registerPeerConnectionListeners();
+
+      // Add local streams
+      localStream?.getTracks().forEach((track) {
+        peerConnection?.addTrack(track, localStream!);
+      });
+
+      // ICE Candidate handling
+      final calleeCandidates = roomRef.collection('calleeCandidates');
+      peerConnection!.onIceCandidate = (RTCIceCandidate? candidate) {
+        if (candidate == null || candidate.candidate!.isEmpty) return;
+        calleeCandidates.add(candidate.toMap());
+      };
+
+      // Process offer
+      final offerData = snapshot.data()!['offer'] as Map<String, dynamic>;
+      final offer = RTCSessionDescription(offerData['sdp'], offerData['type']);
+      await peerConnection!.setRemoteDescription(offer);
+
+      // Create and send answer
+      final answer = await peerConnection!.createAnswer();
+      await peerConnection!.setLocalDescription(answer);
+      await roomRef.update({'answer': answer.toMap()});
+
+      // Listen for caller ICE candidates
+      candidateSubscription = roomRef.collection('callerCandidates').snapshots().listen((snapshot) {
+        for (final change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added) {
+            final data = change.doc.data()!;
+            peerConnection!.addCandidate(RTCIceCandidate(
+              data['candidate'],
+              data['sdpMid']!,
+              data['sdpMLineIndex']!,
+            ));
+          }
+        }
+      });
+
+      peerConnection?.onTrack = (RTCTrackEvent event) {
+        if (event.streams.isEmpty) return;
+        event.streams[0].getTracks().forEach((track) {
+          remoteStream?.addTrack(track);
+        });
+      };
+    } catch (e) {
+      _cleanupResources([candidateSubscription]);
+      rethrow;
+    }
+  }
+
+  void _cleanupResources(List<StreamSubscription?> subscriptions) {
+    for (final sub in subscriptions) {
+      sub?.cancel();
+    }
+    peerConnection?.close();
+    peerConnection = null;
   }
 
   // Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
@@ -349,7 +412,7 @@ class Signaling {
   //   toggleSpeaker();
   //   return roomId;
   // }
-
+  //
   // Future<void> joinRoom(String roomId, RTCVideoRenderer remoteVideo) async {
   //   FirebaseFirestore db = FirebaseFirestore.instance;
   //   print(roomId);
