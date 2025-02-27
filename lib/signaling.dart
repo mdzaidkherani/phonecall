@@ -182,6 +182,15 @@ class Signaling {
       peerConnection = await createPeerConnection(configuration);
       registerPeerConnectionListeners();
 
+      peerConnection?.onTrack = (RTCTrackEvent event) {
+        print("🚀 onTrack event triggered: ${event.track.kind}");
+        if (event.track.kind == "video") {
+          remoteStream = event.streams.first;
+          onAddRemoteStream?.call(remoteStream!);
+          print("✅ Remote video stream added successfully");
+        }
+      };
+
       // Add local streams
       localStream?.getTracks().forEach((track) {
         peerConnection?.addTrack(track, localStream!);
@@ -241,20 +250,7 @@ class Signaling {
         }
       });
 
-      peerConnection?.onTrack = (RTCTrackEvent event) {
-        if (event.streams.isEmpty) return;
-        event.streams[0].getTracks().forEach((track) {
-          remoteStream?.addTrack(track);
-        });
-      };
-      // peerConnection?.onTrack = (RTCTrackEvent event) {
-      //   print("🚀 onTrack event triggered: ${event.track.kind}");
-      //   if (event.track.kind == "video") {
-      //     remoteStream = event.streams.first;
-      //     onAddRemoteStream?.call(remoteStream!);
-      //     print("✅ Remote video stream added successfully");
-      //   }
-      // };
+
       return roomRef.id;
     } catch (e) {
       _cleanupResources([roomSubscription, candidateSubscription]);
