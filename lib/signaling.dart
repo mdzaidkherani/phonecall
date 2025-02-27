@@ -171,7 +171,7 @@ class Signaling {
   // }
 // Create Room (Offerer)
   // Create Room (Caller)
-  Future<String> createRoom() async {
+  Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
     final db = FirebaseFirestore.instance;
     final roomRef = db.collection('rooms').doc();
     bool answerProcessed = false;
@@ -256,7 +256,7 @@ class Signaling {
   }
 
 // Join Room (Callee)
-  Future<void> joinRoom(String roomId) async {
+  Future<void> joinRoom(String roomId,RTCVideoRenderer remoteVideo) async {
     final db = FirebaseFirestore.instance;
     final roomRef = db.collection('rooms').doc(roomId);
     StreamSubscription? candidateSubscription;
