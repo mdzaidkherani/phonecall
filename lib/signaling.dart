@@ -241,15 +241,20 @@ class Signaling {
         }
       });
 
+      // peerConnection?.onTrack = (RTCTrackEvent event) {
+      //   if (event.streams.isEmpty) return;
+      //   event.streams[0].getTracks().forEach((track) {
+      //     remoteStream?.addTrack(track);
+      //   });
+      // };
       peerConnection?.onTrack = (RTCTrackEvent event) {
-        if (event.streams.isEmpty) return;
-        event.streams[0].getTracks().forEach((track) {
-          remoteStream?.addTrack(track);
-          onAddRemoteStream?.call(track as MediaStream);
-          remoteStream = track as MediaStream;
-        });
+        print("🚀 onTrack event triggered: ${event.track.kind}");
+        if (event.track.kind == "video") {
+          remoteStream = event.streams.first;
+          onAddRemoteStream?.call(remoteStream!);
+          print("✅ Remote video stream added successfully");
+        }
       };
-
       return roomRef.id;
     } catch (e) {
       _cleanupResources([roomSubscription, candidateSubscription]);
@@ -308,15 +313,21 @@ class Signaling {
         }
       });
 
+      // peerConnection?.onTrack = (RTCTrackEvent event) {
+      //   if (event.streams.isEmpty) return;
+      //   event.streams[0].getTracks().forEach((track) {
+      //     remoteStream?.addTrack(track);
+      //     onAddRemoteStream?.call(event.streams.first);
+      //     remoteStream = event.streams.first;
+      //   });
+      // };
       peerConnection?.onTrack = (RTCTrackEvent event) {
-        if (event.streams.isEmpty) return;
-        event.streams[0].getTracks().forEach((track) {
-          remoteStream?.addTrack(track);
-          onAddRemoteStream?.call(track as MediaStream);
-          remoteStream = track as MediaStream;
-          // onAddRemoteStream?.call(event);
-          // remoteStream = track;
-        });
+        print("🚀 onTrack event triggered: ${event.track.kind}");
+        if (event.track.kind == "video") {
+          remoteStream = event.streams.first;
+          onAddRemoteStream?.call(remoteStream!);
+          print("✅ Remote video stream added successfully");
+        }
       };
     } catch (e) {
       _cleanupResources([candidateSubscription]);
@@ -614,6 +625,7 @@ class Signaling {
       print("Add remote stream");
       onAddRemoteStream?.call(stream);
       remoteStream = stream;
+
     };
   }
 }
