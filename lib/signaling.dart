@@ -152,7 +152,7 @@ class Signaling {
     // Retry in case Firestore is slow
     Future.delayed(Duration(seconds: 5), () async {
       var snapshot = await roomRef.get();
-      if (snapshot.exists && peerConnection!.getRemoteDescription() == null) {
+      if (snapshot.exists ) {
         var data = snapshot.data() as Map<String, dynamic>;
         if (data.containsKey('answer')) {
           var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
