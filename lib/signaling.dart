@@ -171,7 +171,7 @@ class Signaling {
   // }
 // Create Room (Offerer)
   // Create Room (Caller)
-  Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
+  Future<String> createRoom() async {
     final db = FirebaseFirestore.instance;
     final roomRef = db.collection('rooms').doc();
     bool answerProcessed = false;
@@ -200,7 +200,7 @@ class Signaling {
 
       await roomRef.set({
         'offer': offer.toMap(),
-        'answer': FieldValue.delete() // Clear previous answers
+        // 'answer': FieldValue.delete() // Clear previous answers
       });
 
       // Remote answer listener
@@ -256,7 +256,7 @@ class Signaling {
   }
 
 // Join Room (Callee)
-  Future<void> joinRoom(String roomId, RTCVideoRenderer remoteVideo) async {
+  Future<void> joinRoom(String roomId) async {
     final db = FirebaseFirestore.instance;
     final roomRef = db.collection('rooms').doc(roomId);
     StreamSubscription? candidateSubscription;
