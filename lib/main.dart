@@ -203,7 +203,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   Signaling signaling = Signaling();
-  Signaling2 signaling2 = Signaling2();
+  // Signaling2 signaling2 = Signaling2();
 
   RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();

@@ -5,6 +5,315 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 typedef void StreamStateCallback(MediaStream stream);
 
+// class Signaling {
+//   Map<String, dynamic> configuration = {
+//     'iceServers': [
+//       {
+//         'urls': [
+//           'stun:stun1.l.google.com:19302',
+//           'stun:stun2.l.google.com:19302'
+//         ]
+//       }
+//     ]
+//   };
+//
+//   RTCPeerConnection? peerConnection;
+//   MediaStream? localStream;
+//   MediaStream? remoteStream;
+//   String? roomId;
+//   String? currentRoomText;
+//   StreamStateCallback? onAddRemoteStream;
+//
+//   bool hasMultipleCameras = false;
+//   String? _currentCameraId;
+//
+//   Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
+//     FirebaseFirestore db = FirebaseFirestore.instance;
+//     DocumentReference roomRef = db.collection('rooms').doc();
+//
+//     print('Create PeerConnection with configuration: $configuration');
+//
+//     peerConnection = await createPeerConnection(configuration);
+//
+//     registerPeerConnectionListeners();
+//
+//     localStream?.getTracks().forEach((track) {
+//       peerConnection?.addTrack(track, localStream!);
+//     });
+//
+//     // Code for collecting ICE candidates below
+//     var callerCandidatesCollection = roomRef.collection('callerCandidates');
+//
+//     peerConnection?.onIceCandidate = (RTCIceCandidate candidate) {
+//       print('Got candidate: ${candidate.toMap()}');
+//       callerCandidatesCollection.add(candidate.toMap());
+//     };
+//     // Finish Code for collecting ICE candidate
+//
+//     // Add code for creating a room
+//     RTCSessionDescription offer = await peerConnection!.createOffer();
+//     await peerConnection!.setLocalDescription(offer);
+//     print('Created offer: $offer');
+//
+//     Map<String, dynamic> roomWithOffer = {
+//       'offer': offer.toMap(),
+//     };
+//
+//     await roomRef.set(roomWithOffer);
+//     var roomId = roomRef.id;
+//     print('New room created with SDK offer. Room ID: $roomId');
+//     currentRoomText = 'Current room is $roomId - You are the caller!';
+//     // Created a Room
+//
+//     peerConnection?.onTrack = (RTCTrackEvent event) {
+//       print('Got remote track: ${event.streams[0]}');
+//
+//       event.streams[0].getTracks().forEach((track) {
+//         print('Add a track to the remoteStream $track');
+//         remoteStream?.addTrack(track);
+//         // remoteStream2 = event.streams[0];
+//         onAddRemoteStream?.call(remoteStream!);
+//       });
+//     };
+//
+//     // Listening for remote session description below
+//     roomRef.snapshots().listen((snapshot) async {
+//       print('Got updated room: ${snapshot.data()}');
+//
+//       Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
+//       if (peerConnection?.getRemoteDescription() != null &&
+//           data['answer'] != null) {
+//         var answer = RTCSessionDescription(
+//           data['answer']['sdp'],
+//           data['answer']['type'],
+//         );
+//
+//         print("Someone tried to connect");
+//         await peerConnection?.setRemoteDescription(answer);
+//       }
+//     });
+//     // Listening for remote session description above
+//
+//     // Listen for remote Ice candidates below
+//     roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
+//       snapshot.docChanges.forEach((change) {
+//         if (change.type == DocumentChangeType.added) {
+//           Map<String, dynamic> data = change.doc.data() as Map<String, dynamic>;
+//           print('Got new remote ICE candidate: ${jsonEncode(data)}');
+//           peerConnection!.addCandidate(
+//             RTCIceCandidate(
+//               data['candidate'],
+//               data['sdpMid'],
+//               data['sdpMLineIndex'],
+//             ),
+//           );
+//         }
+//       });
+//     });
+//     // Listen for remote ICE candidates above
+//     toggleSpeaker();
+//     return roomId;
+//   }
+//
+//   Future<void> joinRoom(String roomId, RTCVideoRenderer remoteVideo) async {
+//     FirebaseFirestore db = FirebaseFirestore.instance;
+//     print(roomId);
+//     DocumentReference roomRef = db.collection('rooms').doc('$roomId');
+//     var roomSnapshot = await roomRef.get();
+//     print('Got room ${roomSnapshot.exists}');
+//
+//     if (roomSnapshot.exists) {
+//       print('Create PeerConnection with configuration: $configuration');
+//       peerConnection = await createPeerConnection(configuration);
+//
+//       registerPeerConnectionListeners();
+//
+//       localStream?.getTracks().forEach((track) {
+//         peerConnection?.addTrack(track, localStream!);
+//       });
+//
+//       // Code for collecting ICE candidates below
+//       var calleeCandidatesCollection = roomRef.collection('calleeCandidates');
+//       peerConnection!.onIceCandidate = (RTCIceCandidate? candidate) {
+//         if (candidate == null) {
+//           print('onIceCandidate: complete!');
+//           return;
+//         }
+//         print('onIceCandidate: ${candidate.toMap()}');
+//         calleeCandidatesCollection.add(candidate.toMap());
+//       };
+//       // Code for collecting ICE candidate above
+//
+//       peerConnection?.onTrack = (RTCTrackEvent event) {
+//         print('Got remote track: ${event.streams[0]}');
+//         event.streams[0].getTracks().forEach((track) {
+//           print('Add a track to the remoteStream: $track');
+//           remoteStream?.addTrack(track);
+//         });
+//       };
+//
+//       // Code for creating SDP answer below
+//       var data = roomSnapshot.data() as Map<String, dynamic>;
+//       print('Got offer $data');
+//       var offer = data['offer'];
+//       await peerConnection?.setRemoteDescription(
+//         RTCSessionDescription(offer['sdp'], offer['type']),
+//       );
+//       var answer = await peerConnection!.createAnswer();
+//       print('Created Answer $answer');
+//
+//       await peerConnection!.setLocalDescription(answer);
+//
+//       Map<String, dynamic> roomWithAnswer = {
+//         'answer': {'type': answer.type, 'sdp': answer.sdp}
+//       };
+//
+//       await roomRef.update(roomWithAnswer);
+//       // Finished creating SDP answer
+//
+//       // Listening for remote ICE candidates below
+//       roomRef.collection('callerCandidates').snapshots().listen((snapshot) {
+//         snapshot.docChanges.forEach((document) {
+//           var data = document.doc.data() as Map<String, dynamic>;
+//           print(data);
+//           print('Got new remote ICE candidate: $data');
+//           peerConnection!.addCandidate(
+//             RTCIceCandidate(
+//               data['candidate'],
+//               data['sdpMid'],
+//               data['sdpMLineIndex'],
+//             ),
+//           );
+//         });
+//       });
+//     }
+//     toggleSpeaker();
+//   }
+//
+//   Future<void> toggleCamera() async {
+//     if (localStream == null) return;
+//
+//     // Get the first video track
+//     var videoTrack = localStream!.getVideoTracks().first;
+//
+//     // Check if switching is supported
+//     if (videoTrack.kind == 'video' && videoTrack is MediaStreamTrack) {
+//       try {
+//         await Helper.switchCamera(videoTrack); // This switches between front and back cameras
+//       } catch (e) {
+//         print("Error switching camera: $e");
+//       }
+//     }
+//   }
+//
+//
+//
+//   // Update openUserMedia to detect multiple cameras
+//   Future<bool> openUserMedia(RTCVideoRenderer localVideo, RTCVideoRenderer remoteVideo,) async {
+//     final stream = await navigator.mediaDevices.getUserMedia({
+//       'video': true,
+//       'audio': true,
+//     });
+//
+//     // Detect available cameras
+//     final devices = await navigator.mediaDevices.enumerateDevices();
+//     final videoDevices = devices.where((d) => d.kind == 'videoinput').toList();
+//     hasMultipleCameras = videoDevices.length >= 2;
+//
+//     if (videoDevices.isNotEmpty) {
+//       _currentCameraId = videoDevices.first.deviceId;
+//     }
+//
+//     localVideo.srcObject = stream;
+//     localStream = stream;
+//     remoteVideo.srcObject = await createLocalMediaStream('remote');
+//     toggleSpeaker();
+//     return true;
+//   }
+//
+//   Future<bool> toggleVideo(isVideoEnabled)async {
+//     if (localStream != null) {
+//       for (var track in localStream!.getVideoTracks()) {
+//         track.enabled = !isVideoEnabled;
+//       }
+//     }
+//     return !isVideoEnabled;
+//   }
+//
+//   Future<bool> toggleAudio(isAudioEnabled) async{
+//     if (localStream != null) {
+//       for (var track in localStream!.getAudioTracks()) {
+//         track.enabled = !isAudioEnabled;
+//       }
+//     }
+//     return !isAudioEnabled;
+//   }
+//
+//   Future<void> toggleSpeaker() async {
+//     try {
+//       // if (isSpeakerOn) {
+//         await Helper.selectAudioOutput('speaker'); // Switch to speakerphone
+//       // } else {
+//       //   await Helper.selectAudioOutput('earpiece'); // Switch to earpiece
+//       // }
+//     } catch (e) {
+//       print('Error toggling speaker: $e');
+//     }
+//   }
+//
+//   Future<void> hangUp(RTCVideoRenderer localVideo) async {
+//     List<MediaStreamTrack> tracks = localVideo.srcObject!.getTracks();
+//     tracks.forEach((track) {
+//       track.stop();
+//     });
+//
+//     if (remoteStream != null) {
+//       remoteStream!.getTracks().forEach((track) => track.stop());
+//     }
+//     if (peerConnection != null) peerConnection!.close();
+//
+//     if (roomId != null) {
+//       var db = FirebaseFirestore.instance;
+//       var roomRef = db.collection('rooms').doc(roomId);
+//       var calleeCandidates = await roomRef.collection('calleeCandidates').get();
+//       calleeCandidates.docs.forEach((document) => document.reference.delete());
+//
+//       var callerCandidates = await roomRef.collection('callerCandidates').get();
+//       callerCandidates.docs.forEach((document) => document.reference.delete());
+//
+//       await roomRef.delete();
+//     }
+//
+//     localStream!.dispose();
+//     remoteStream?.dispose();
+//   }
+//
+//   void registerPeerConnectionListeners() {
+//     peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
+//       print('ICE gathering state changed: $state');
+//     };
+//
+//     peerConnection?.onConnectionState = (RTCPeerConnectionState state) {
+//       print('Connection state change: $state');
+//     };
+//
+//     peerConnection?.onSignalingState = (RTCSignalingState state) {
+//       print('Signaling state change: $state');
+//     };
+//
+//     peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
+//       print('ICE connection state change: $state');
+//     };
+//
+//     peerConnection?.onAddStream = (MediaStream stream) {
+//       print("Add remote stream");
+//       onAddRemoteStream?.call(stream);
+//       remoteStream = stream;
+//     };
+//   }
+// }
+
+
 class Signaling {
   Map<String, dynamic> configuration = {
     'iceServers': [
@@ -27,6 +336,7 @@ class Signaling {
   bool hasMultipleCameras = false;
   String? _currentCameraId;
 
+  /// **📌 CREATE ROOM FUNCTION**
   Future<String> createRoom(RTCVideoRenderer remoteRenderer) async {
     FirebaseFirestore db = FirebaseFirestore.instance;
     DocumentReference roomRef = db.collection('rooms').doc();
@@ -34,202 +344,134 @@ class Signaling {
     print('Create PeerConnection with configuration: $configuration');
 
     peerConnection = await createPeerConnection(configuration);
-
     registerPeerConnectionListeners();
+
+    // Initialize remote stream
+    remoteStream = await createLocalMediaStream('remote');
+    remoteRenderer.srcObject = remoteStream;
 
     localStream?.getTracks().forEach((track) {
       peerConnection?.addTrack(track, localStream!);
     });
 
-    // Code for collecting ICE candidates below
     var callerCandidatesCollection = roomRef.collection('callerCandidates');
 
     peerConnection?.onIceCandidate = (RTCIceCandidate candidate) {
       print('Got candidate: ${candidate.toMap()}');
       callerCandidatesCollection.add(candidate.toMap());
     };
-    // Finish Code for collecting ICE candidate
 
-    // Add code for creating a room
     RTCSessionDescription offer = await peerConnection!.createOffer();
     await peerConnection!.setLocalDescription(offer);
     print('Created offer: $offer');
 
-    Map<String, dynamic> roomWithOffer = {
-      'offer': offer.toMap(),
-    };
-
-    await roomRef.set(roomWithOffer);
-    var roomId = roomRef.id;
-    print('New room created with SDK offer. Room ID: $roomId');
-    currentRoomText = 'Current room is $roomId - You are the caller!';
-    // Created a Room
+    await roomRef.set({'offer': offer.toMap()});
+    roomId = roomRef.id;
+    print('New room created with Room ID: $roomId');
 
     peerConnection?.onTrack = (RTCTrackEvent event) {
-      print('Got remote track: ${event.streams[0]}');
-
-      event.streams[0].getTracks().forEach((track) {
-        print('Add a track to the remoteStream $track');
-        remoteStream?.addTrack(track);
-      });
+      if (event.streams.isNotEmpty) {
+        print('Got remote track: ${event.streams[0]}');
+        remoteStream = event.streams[0];
+        onAddRemoteStream?.call(remoteStream!);
+      }
     };
 
-    // Listening for remote session description below
     roomRef.snapshots().listen((snapshot) async {
-      print('Got updated room: ${snapshot.data()}');
-
-      Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
-      if (peerConnection?.getRemoteDescription() != null &&
-          data['answer'] != null) {
-        var answer = RTCSessionDescription(
-          data['answer']['sdp'],
-          data['answer']['type'],
-        );
-
-        print("Someone tried to connect");
+      if (!snapshot.exists) return;
+      var data = snapshot.data() as Map<String, dynamic>;
+      if (data['answer'] != null && peerConnection?.getRemoteDescription() == null) {
+        var answer = RTCSessionDescription(data['answer']['sdp'], data['answer']['type']);
+        await Future.delayed(Duration(seconds: 1));
         await peerConnection?.setRemoteDescription(answer);
       }
     });
-    // Listening for remote session description above
 
-    // Listen for remote Ice candidates below
     roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
-      snapshot.docChanges.forEach((change) {
-        if (change.type == DocumentChangeType.added) {
-          Map<String, dynamic> data = change.doc.data() as Map<String, dynamic>;
-          print('Got new remote ICE candidate: ${jsonEncode(data)}');
-          peerConnection!.addCandidate(
-            RTCIceCandidate(
-              data['candidate'],
-              data['sdpMid'],
-              data['sdpMLineIndex'],
-            ),
-          );
-        }
-      });
+      for (var change in snapshot.docChanges) {
+        var data = change.doc.data() as Map<String, dynamic>;
+        peerConnection?.addCandidate(RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']));
+      }
     });
-    // Listen for remote ICE candidates above
+
     toggleSpeaker();
-    return roomId;
+    return roomId!;
   }
 
-  Future<void> joinRoom(String roomId, RTCVideoRenderer remoteVideo) async {
+  /// **📌 JOIN ROOM FUNCTION**
+  Future<void> joinRoom(String roomId, RTCVideoRenderer remoteRenderer) async {
     FirebaseFirestore db = FirebaseFirestore.instance;
-    print(roomId);
-    DocumentReference roomRef = db.collection('rooms').doc('$roomId');
+    DocumentReference roomRef = db.collection('rooms').doc(roomId);
     var roomSnapshot = await roomRef.get();
-    print('Got room ${roomSnapshot.exists}');
 
     if (roomSnapshot.exists) {
-      print('Create PeerConnection with configuration: $configuration');
+      print('Joining room: $roomId');
       peerConnection = await createPeerConnection(configuration);
-
       registerPeerConnectionListeners();
+
+      remoteStream = await createLocalMediaStream('remote');
+      remoteRenderer.srcObject = remoteStream;
 
       localStream?.getTracks().forEach((track) {
         peerConnection?.addTrack(track, localStream!);
       });
 
-      // Code for collecting ICE candidates below
       var calleeCandidatesCollection = roomRef.collection('calleeCandidates');
       peerConnection!.onIceCandidate = (RTCIceCandidate? candidate) {
-        if (candidate == null) {
-          print('onIceCandidate: complete!');
-          return;
+        if (candidate != null) {
+          calleeCandidatesCollection.add(candidate.toMap());
         }
-        print('onIceCandidate: ${candidate.toMap()}');
-        calleeCandidatesCollection.add(candidate.toMap());
       };
-      // Code for collecting ICE candidate above
 
       peerConnection?.onTrack = (RTCTrackEvent event) {
-        print('Got remote track: ${event.streams[0]}');
-        event.streams[0].getTracks().forEach((track) {
-          print('Add a track to the remoteStream: $track');
-          remoteStream?.addTrack(track);
-        });
+        if (event.streams.isNotEmpty) {
+          print('Got remote track: ${event.streams[0]}');
+          remoteStream = event.streams[0];
+          onAddRemoteStream?.call(remoteStream!);
+        }
       };
 
-      // Code for creating SDP answer below
       var data = roomSnapshot.data() as Map<String, dynamic>;
-      print('Got offer $data');
       var offer = data['offer'];
-      await peerConnection?.setRemoteDescription(
-        RTCSessionDescription(offer['sdp'], offer['type']),
-      );
+      await peerConnection?.setRemoteDescription(RTCSessionDescription(offer['sdp'], offer['type']));
+
       var answer = await peerConnection!.createAnswer();
-      print('Created Answer $answer');
-
       await peerConnection!.setLocalDescription(answer);
+      await roomRef.update({'answer': {'type': answer.type, 'sdp': answer.sdp}});
 
-      Map<String, dynamic> roomWithAnswer = {
-        'answer': {'type': answer.type, 'sdp': answer.sdp}
-      };
-
-      await roomRef.update(roomWithAnswer);
-      // Finished creating SDP answer
-
-      // Listening for remote ICE candidates below
       roomRef.collection('callerCandidates').snapshots().listen((snapshot) {
-        snapshot.docChanges.forEach((document) {
+        for (var document in snapshot.docChanges) {
           var data = document.doc.data() as Map<String, dynamic>;
-          print(data);
-          print('Got new remote ICE candidate: $data');
-          peerConnection!.addCandidate(
-            RTCIceCandidate(
-              data['candidate'],
-              data['sdpMid'],
-              data['sdpMLineIndex'],
-            ),
-          );
-        });
+          peerConnection!.addCandidate(RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']));
+        }
       });
     }
     toggleSpeaker();
   }
 
-  Future<void> toggleCamera() async {
-    if (localStream == null) return;
-
-    // Get the first video track
-    var videoTrack = localStream!.getVideoTracks().first;
-
-    // Check if switching is supported
-    if (videoTrack.kind == 'video' && videoTrack is MediaStreamTrack) {
-      try {
-        await Helper.switchCamera(videoTrack); // This switches between front and back cameras
-      } catch (e) {
-        print("Error switching camera: $e");
-      }
-    }
-  }
-
-
-
-  // Update openUserMedia to detect multiple cameras
-  Future<bool> openUserMedia(RTCVideoRenderer localVideo, RTCVideoRenderer remoteVideo,) async {
-    final stream = await navigator.mediaDevices.getUserMedia({
-      'video': true,
-      'audio': true,
-    });
-
-    // Detect available cameras
-    final devices = await navigator.mediaDevices.enumerateDevices();
-    final videoDevices = devices.where((d) => d.kind == 'videoinput').toList();
-    hasMultipleCameras = videoDevices.length >= 2;
-
-    if (videoDevices.isNotEmpty) {
-      _currentCameraId = videoDevices.first.deviceId;
-    }
+  /// **📌 MEDIA FUNCTIONS**
+  Future<bool> openUserMedia(RTCVideoRenderer localVideo, RTCVideoRenderer remoteVideo) async {
+    final stream = await navigator.mediaDevices.getUserMedia({'video': true, 'audio': true});
 
     localVideo.srcObject = stream;
     localStream = stream;
+
     remoteVideo.srcObject = await createLocalMediaStream('remote');
-    toggleSpeaker();
+    // toggleSpeaker();
     return true;
   }
 
-  Future<bool> toggleVideo(isVideoEnabled)async {
+  Future<void> toggleCamera() async {
+    if (localStream == null) return;
+    var videoTrack = localStream!.getVideoTracks().first;
+    try {
+      await Helper.switchCamera(videoTrack);
+    } catch (e) {
+      print("Error switching camera: $e");
+    }
+  }
+
+  Future<bool> toggleVideo(bool isVideoEnabled) async {
     if (localStream != null) {
       for (var track in localStream!.getVideoTracks()) {
         track.enabled = !isVideoEnabled;
@@ -238,7 +480,7 @@ class Signaling {
     return !isVideoEnabled;
   }
 
-  Future<bool> toggleAudio(isAudioEnabled) async{
+  Future<bool> toggleAudio(bool isAudioEnabled) async {
     if (localStream != null) {
       for (var track in localStream!.getAudioTracks()) {
         track.enabled = !isAudioEnabled;
@@ -249,36 +491,27 @@ class Signaling {
 
   Future<void> toggleSpeaker() async {
     try {
-      // if (isSpeakerOn) {
-        await Helper.selectAudioOutput('speaker'); // Switch to speakerphone
-      // } else {
-      //   await Helper.selectAudioOutput('earpiece'); // Switch to earpiece
-      // }
+      await Helper.selectAudioOutput('speaker');
     } catch (e) {
       print('Error toggling speaker: $e');
     }
   }
 
+  /// **📌 HANGUP FUNCTION**
   Future<void> hangUp(RTCVideoRenderer localVideo) async {
-    List<MediaStreamTrack> tracks = localVideo.srcObject!.getTracks();
-    tracks.forEach((track) {
-      track.stop();
-    });
-
-    if (remoteStream != null) {
-      remoteStream!.getTracks().forEach((track) => track.stop());
-    }
-    if (peerConnection != null) peerConnection!.close();
+    localVideo.srcObject?.getTracks().forEach((track) => track.stop());
+    remoteStream?.getTracks().forEach((track) => track.stop());
+    peerConnection?.close();
 
     if (roomId != null) {
       var db = FirebaseFirestore.instance;
       var roomRef = db.collection('rooms').doc(roomId);
-      var calleeCandidates = await roomRef.collection('calleeCandidates').get();
-      calleeCandidates.docs.forEach((document) => document.reference.delete());
-
-      var callerCandidates = await roomRef.collection('callerCandidates').get();
-      callerCandidates.docs.forEach((document) => document.reference.delete());
-
+      await roomRef.collection('calleeCandidates').get().then((snapshot) {
+        snapshot.docs.forEach((doc) => doc.reference.delete());
+      });
+      await roomRef.collection('callerCandidates').get().then((snapshot) {
+        snapshot.docs.forEach((doc) => doc.reference.delete());
+      });
       await roomRef.delete();
     }
 
@@ -286,6 +519,7 @@ class Signaling {
     remoteStream?.dispose();
   }
 
+  /// **📌 PEER CONNECTION EVENT LISTENERS**
   void registerPeerConnectionListeners() {
     peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
       print('ICE gathering state changed: $state');
@@ -297,16 +531,6 @@ class Signaling {
 
     peerConnection?.onSignalingState = (RTCSignalingState state) {
       print('Signaling state change: $state');
-    };
-
-    peerConnection?.onIceGatheringState = (RTCIceGatheringState state) {
-      print('ICE connection state change: $state');
-    };
-
-    peerConnection?.onAddStream = (MediaStream stream) {
-      print("Add remote stream");
-      onAddRemoteStream?.call(stream);
-      remoteStream = stream;
     };
   }
 }
