@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -415,7 +417,33 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _videoPreviewSection() {
     return Positioned.fill(
-      child: Row(
+      child: Platform.isAndroid
+          ? Column(
+        children: [
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: Colors.black12,
+              ),
+              child: RTCVideoView(_localRenderer, mirror: true,objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,),
+            ),
+          ),
+          if (_remoteRenderer.srcObject != null)
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.black12,
+                ),
+                child: RTCVideoView(_remoteRenderer,objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+              ),
+            ),
+        ],
+      )
+          : Row(
         children: [
           Expanded(
             child: Container(
