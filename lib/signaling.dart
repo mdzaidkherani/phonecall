@@ -315,13 +315,25 @@ typedef void StreamStateCallback(MediaStream stream);
 
 
 class Signaling {
+  // Map<String, dynamic> configuration = {
+  //   'iceServers': [
+  //     {
+  //       'urls': [
+  //         'stun:stun1.l.google.com:19302',
+  //         'stun:stun2.l.google.com:19302'
+  //       ]
+  //     }
+  //   ]
+  // };
   Map<String, dynamic> configuration = {
     'iceServers': [
       {
-        'urls': [
-          'stun:stun1.l.google.com:19302',
-          'stun:stun2.l.google.com:19302'
-        ]
+        'urls': ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302']
+      },
+      {
+        'urls': 'turn:your.turn.server:3478',
+        'username': 'AC159495940d40f2cd734b1915c39587cc',
+        'credential': '0814785acf819a613dc18c550b1a23c7'
       }
     ]
   };
@@ -386,12 +398,38 @@ class Signaling {
         await peerConnection?.setRemoteDescription(answer);
       }
     });
+    // roomRef.snapshots().listen((snapshot) async {
+    //   print('Got updated room: ${snapshot.data()}');
+    //
+    //   Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
+    //   if (peerConnection?.getRemoteDescription() != null &&
+    //       data['answer'] != null) {
+    //     var answer = RTCSessionDescription(
+    //       data['answer']['sdp'],
+    //       data['answer']['type'],
+    //     );
+    //
+    //     print("Someone tried to connect");
+    //     await peerConnection?.setRemoteDescription(answer);
+    //   }
+    // });
 
+    // roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
+    //   for (var change in snapshot.docChanges) {
+    //     var data = change.doc.data() as Map<String, dynamic>;
+    //     peerConnection?.addCandidate(RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']));
+    //   }
+    // });
     roomRef.collection('calleeCandidates').snapshots().listen((snapshot) {
-      for (var change in snapshot.docChanges) {
-        var data = change.doc.data() as Map<String, dynamic>;
-        peerConnection?.addCandidate(RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']));
-      }
+      snapshot.docChanges.forEach((change) {
+        if (change.type == DocumentChangeType.added) {
+          Map<String, dynamic> data = change.doc.data() as Map<String, dynamic>;
+          print('Received Remote ICE Candidate: ${jsonEncode(data)}');
+          peerConnection!.addCandidate(
+            RTCIceCandidate(data['candidate'], data['sdpMid'], data['sdpMLineIndex']),
+          );
+        }
+      });
     });
 
     toggleSpeaker();
