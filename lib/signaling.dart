@@ -40,7 +40,7 @@ class Signaling {
   bool hasMultipleCameras = false;
   String? _currentCameraId;
 
-  Future<void> createRoom() async {
+  Future<String> createRoom() async {
     final roomRef = FirebaseFirestore.instance.collection('rooms').doc();
 
     peerConnection = await createPeerConnection(configuration);
@@ -57,7 +57,7 @@ class Signaling {
     await roomRef.set({
       'offer': {'sdp': offer.sdp, 'type': offer.type},
     });
-
+    var roomId = roomRef.id;
     print('✅ Offer created and saved to Firestore.');
 
     roomRef.snapshots(includeMetadataChanges: true).listen((snapshot) async {
@@ -72,6 +72,7 @@ class Signaling {
     });
 
     print('📡 Waiting for an answer...');
+    return roomId;
   }
   Future<void> joinRoom(String roomId) async {
     final roomRef = FirebaseFirestore.instance.collection('rooms').doc(roomId);

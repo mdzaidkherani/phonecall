@@ -99,7 +99,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  roomId = await signaling.createRoom(_remoteRenderer);
+                  roomId = await signaling.createRoom();
                   textEditingController.text = roomId!;
                   setState(() {});
                 },
@@ -116,7 +116,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   // Add roomId
                   signaling.joinRoom(
                     textEditingController.text.trim(),
-                    _remoteRenderer,
+
                   );
                 },
                 child: Text("Join room"),
