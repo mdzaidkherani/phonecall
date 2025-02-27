@@ -417,7 +417,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _videoPreviewSection() {
     return Positioned.fill(
-      child: Platform.isAndroid
+      child: MediaQuery.of(context).size.width < 400
           ? Column(
         children: [
           Expanded(
@@ -452,7 +452,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 borderRadius: BorderRadius.circular(16),
                 color: Colors.black12,
               ),
-              child: RTCVideoView(_localRenderer, mirror: true),
+              child: RTCVideoView(_localRenderer, mirror: true,objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,),
             ),
           ),
           if (_remoteRenderer.srcObject != null)
@@ -463,7 +463,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   borderRadius: BorderRadius.circular(16),
                   color: Colors.black12,
                 ),
-                child: RTCVideoView(_remoteRenderer),
+                child: RTCVideoView(_remoteRenderer,objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,),
               ),
             ),
         ],
