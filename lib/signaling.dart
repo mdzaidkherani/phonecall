@@ -18,8 +18,6 @@ class Signaling {
     ]
   };
 
-
-
   RTCPeerConnection? peerConnection;
   MediaStream? localStream;
   MediaStream? remoteStream;
